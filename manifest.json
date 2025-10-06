@@ -8,7 +8,8 @@
     "activeTab",
     "storage",
     "scripting",
-    "offscreen"
+    "offscreen",
+    "declarativeNetRequest"
   ],
   "host_permissions": [
     "http://127.0.0.1:5000/*",
@@ -32,5 +33,22 @@
 
   "action": {
     "default_popup": "popup.html"
+  },
+
+  "web_accessible_resources": [
+    {
+      "resources": ["offscreen.html"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "pixiv_referer",
+        "enabled": true,
+        "path": "rules.json"
+      }
+    ]
   }
 }
