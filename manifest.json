@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "Manga Translator",
+  "version": "3.0.0",
+  "description": "Translate manga using offscreen OCR",
+
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting",
+    "offscreen"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1:5000/*",
+    "https://*.pximg.net/*",
+    "https://*.pixiv.net/*",
+    "<all_urls>"
+  ],
+
+  "background": {
+    "service_worker": "background.js"
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["overlay.css"],
+      "run_at": "document_end"
+    }
+  ],
+
+  "action": {
+    "default_popup": "popup.html"
+  }
+}

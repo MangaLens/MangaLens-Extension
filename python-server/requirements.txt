@@ -1,0 +1,10 @@
+flask
+flask-cors
+paddlepaddle
+paddleocr
+pillow
+numpy
+surya-ocr
+transformers<=4.51.3
+accelerate
+openai
