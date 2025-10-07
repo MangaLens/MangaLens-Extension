@@ -44,7 +44,7 @@ Translation is powered by LM Studio (local) or any OpenAI-compatible API:
 
 ```bash
 git clone https://github.com/yourusername/AnythingTranslate-ocr.git
-cd AnythingTranslate-ocr
+cd MangaLens-Extension
 ```
 
 ### Step 2: Install Python Dependencies
@@ -486,7 +486,7 @@ If you want to publish on Chrome Web Store:
 ```bash
 # Create clean ZIP from the extension folder
 cd chome-extention
-zip -r ../AnythingTranslate-ocr.zip . \
+zip -r ../MangaLens-Extension.zip . \
   -x "_metadata/*" \
   -x "*.DS_Store"
 cd ..
