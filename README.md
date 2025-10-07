@@ -43,7 +43,7 @@ Translation is powered by LM Studio (local) or any OpenAI-compatible API:
 ### Step 1: Clone Repository
 
 ```bash
-git clone https://github.com/yourusername/AnythingTranslate-ocr.git
+git clone https://github.com/sinkect/MangaLens-Extension.git
 cd MangaLens-Extension
 ```
 
