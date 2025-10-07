@@ -621,16 +621,6 @@ print(response.choices[0].message.content)
     - Click "service worker" to check logs
     - Verify offscreen document is created
 
-## 📊 Performance
-
-### Processing Speed (per image)
-
-| Hardware | Speed | Notes |
-|----------|-------|-------|
-| **Apple M1/M2/M3** | 2-5 sec | Via MPS acceleration |
-| **NVIDIA RTX 30 Series** | 1-3 sec | Via CUDA |
-| **NVIDIA GTX 10 Series** | 3-7 sec | Older GPU |
-| **Intel/AMD CPU** | 5-15 sec | Slower but works |
 
 ### Accuracy
 
