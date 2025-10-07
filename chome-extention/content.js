@@ -1,3 +1,18 @@
+/**
+ * Content script for automatic OCR and translation of images on web pages.
+ *
+ * This script:
+ * - Detects images on the page (with special handling for Pixiv)
+ * - Queues them for OCR processing
+ * - Sends images to local OCR server
+ * - Overlays translated text on images
+ * - Handles dynamic content with MutationObserver
+ *
+ * @author AnythingTranslate OCR
+ * @version 1.0.0
+ */
+
+// State management
 let processedImages = new Set();
 let settings = {};
 let processingQueue = [];
@@ -7,14 +22,26 @@ let observedImages = new Set();
 let currentUrl = window.location.href;
 let isPageChanging = false;
 let imageObserver = null;
+let targetLanguage = 'Korean'; // Default target language
 
+/**
+ * Initialize the content script
+ * - Load settings
+ * - Wait for page to load
+ * - Detect and queue images
+ * - Set up observers for dynamic content
+ */
 (async function init() {
-    settings = await chrome.storage.sync.get(['enabled']);
+    settings = await chrome.storage.sync.get(['enabled', 'targetLang']);
     if (!settings.enabled) return;
+
+    // Load target language preference
+    targetLanguage = settings.targetLang || 'Korean';
+    console.log('[OCR] Target language:', targetLanguage);
 
     await waitForLoad();
 
-    // ⭐ Pixiv 감지
+    // Detect Pixiv for special handling
     const isPixiv = window.location.hostname.includes('pixiv.net');
 
     if (isPixiv) {
@@ -24,12 +51,16 @@ let imageObserver = null;
         await queueAllImages();
     }
 
-    // ⭐ 새로 추가되는 이미지 감지
+    // Monitor for dynamically added images
     setupImageObserver(isPixiv);
     setupPageChangeDetection();
     processQueue();
 })();
 
+/**
+ * Wait for page to fully load before processing images
+ * @returns {Promise<void>}
+ */
 function waitForLoad() {
     return new Promise(resolve => {
         if (document.readyState === 'complete') {
@@ -40,20 +71,23 @@ function waitForLoad() {
     });
 }
 
-// ⭐ 새로운 이미지 자동 감지 및 큐 추가
+/**
+ * Set up MutationObserver to detect and process newly added images
+ * @param {boolean} isPixiv - Whether the current site is Pixiv
+ */
 function setupImageObserver(isPixiv) {
     console.log('[OCR] Setting up image observer...');
 
     imageObserver = new MutationObserver((mutations) => {
         for (const mutation of mutations) {
-            // 새로 추가된 노드 체크
+            // Check newly added nodes
             for (const node of mutation.addedNodes) {
                 if (node.nodeType === Node.ELEMENT_NODE) {
-                    // img 태그 직접 추가
+                    // Direct img tag addition
                     if (node.tagName === 'IMG') {
                         handleNewImage(node, isPixiv);
                     }
-                    // 자식 중에 img 태그 있는지 확인
+                    // Check for img tags in children
                     const images = node.querySelectorAll?.('img');
                     if (images) {
                         images.forEach(img => handleNewImage(img, isPixiv));
@@ -61,10 +95,10 @@ function setupImageObserver(isPixiv) {
                 }
             }
 
-            // 속성 변경 (src, srcset 등)
+            // Handle attribute changes (src, srcset, etc.)
             if (mutation.type === 'attributes' && mutation.target.tagName === 'IMG') {
                 const img = mutation.target;
-                // 이미 처리한 이미지가 아니면 다시 체크
+                // Recheck if not already processed or observed
                 if (!observedImages.has(img) && !processedImages.has(img)) {
                     handleNewImage(img, isPixiv);
                 }
@@ -80,8 +114,13 @@ function setupImageObserver(isPixiv) {
     });
 }
 
+/**
+ * Handle newly detected image and add to processing queue
+ * @param {HTMLImageElement} img - The image element to process
+ * @param {boolean} isPixiv - Whether the current site is Pixiv
+ */
 async function handleNewImage(img, isPixiv) {
-    // 이미 처리 중이거나 처리된 이미지는 스킵
+    // Skip if already processing or processed
     if (observedImages.has(img) || processedImages.has(img)) {
         return;
     }
@@ -89,7 +128,7 @@ async function handleNewImage(img, isPixiv) {
     console.log('[OCR] New image detected');
 
     if (isPixiv) {
-        // Pixiv 이미지 처리
+        // Pixiv-specific image handling
         let src = img.currentSrc || img.src || img.getAttribute('data-src');
 
         const srcset = img.getAttribute('srcset');
@@ -105,6 +144,7 @@ async function handleNewImage(img, isPixiv) {
             return;
         }
 
+        // Convert thumbnail URLs to original quality
         let originalSrc = src;
         if (src.includes('/c/')) {
             originalSrc = src.replace(/\/c\/\d+x\d+[^\/]*\//, '/');
@@ -112,7 +152,7 @@ async function handleNewImage(img, isPixiv) {
         originalSrc = originalSrc.replace(/_square\d+\./, '_master1200.');
         originalSrc = originalSrc.replace(/_custom\d+\./, '_master1200.');
 
-        // 로드 대기
+        // Wait for image to load
         if (!img.complete || img.naturalWidth === 0) {
             await new Promise((resolve) => {
                 const timeout = setTimeout(() => resolve(), 5000);
@@ -136,11 +176,11 @@ async function handleNewImage(img, isPixiv) {
             processingQueue.push(img);
             console.log(`[OCR] ✓ New Pixiv image added (${width}x${height})`);
 
-            // 큐 처리 시작 (이미 진행 중이면 무시됨)
+            // Start queue processing (ignored if already running)
             processQueue();
         }
     } else {
-        // 일반 이미지 처리
+        // Standard image handling
         if (!img.complete) {
             await new Promise((resolve) => {
                 const timeout = setTimeout(resolve, 2000);
@@ -156,12 +196,16 @@ async function handleNewImage(img, isPixiv) {
             processingQueue.push(img);
             console.log(`[OCR] ✓ New image added (${img.naturalWidth}x${img.naturalHeight})`);
 
-            // 큐 처리 시작
+            // Start queue processing
             processQueue();
         }
     }
 }
 
+/**
+ * Handle Pixiv-specific image detection and queueing
+ * Pixiv requires special URL handling to get full-resolution images
+ */
 async function handlePixivImages() {
     console.log('[OCR] Waiting for Pixiv images to load...');
 
@@ -188,6 +232,7 @@ async function handlePixivImages() {
 
         let originalSrc = src;
 
+        // Upgrade thumbnail URLs to full-size
         if (src.includes('/c/')) {
             originalSrc = src.replace(/\/c\/\d+x\d+[^\/]*\//, '/');
             console.log(`[Pixiv] Upgrading thumbnail to full size`);
@@ -198,7 +243,7 @@ async function handlePixivImages() {
 
         console.log(`[Pixiv] Checking image: ${originalSrc.substring(0, 80)}`);
 
-        // 로드 대기
+        // Wait for image to load
         if (!img.complete || img.naturalWidth === 0) {
             console.log(`[Pixiv]   Waiting for load...`);
             await new Promise((resolve) => {
@@ -213,7 +258,7 @@ async function handlePixivImages() {
                     resolve();
                 }, { once: true });
 
-                // 이미 로드됨
+                // Already loaded
                 if (img.complete && img.naturalWidth > 0) {
                     clearTimeout(timeout);
                     resolve();
@@ -221,7 +266,7 @@ async function handlePixivImages() {
             });
         }
 
-        // 크기 체크
+        // Size check
         const width = img.naturalWidth || img.width;
         const height = img.naturalHeight || img.height;
 
@@ -229,7 +274,7 @@ async function handlePixivImages() {
 
         if (width > 200 && height > 200) {
             observedImages.add(img);
-            // ⭐ 원본 URL을 저장
+            // Store original URL for later use
             img.dataset.originalPixivSrc = originalSrc;
             processingQueue.push(img);
             added++;
@@ -242,11 +287,9 @@ async function handlePixivImages() {
     console.log(`[OCR] ✅ Added ${added} Pixiv images to queue`);
 }
 
-async function scrollToLoadImages() {
-    // 스크롤 제거 - 불필요함
-    return Promise.resolve();
-}
-
+/**
+ * Queue all standard images on the page
+ */
 async function queueAllImages() {
     const images = Array.from(document.querySelectorAll('img'));
     console.log(`[OCR] Found ${images.length} images, adding all to queue...`);
@@ -274,6 +317,9 @@ async function queueAllImages() {
     console.log(`[OCR] ✅ Added ${added} images to queue`);
 }
 
+/**
+ * Set up detection for page navigation/changes to stop processing
+ */
 function setupPageChangeDetection() {
     const observer = new MutationObserver(() => {
         if (window.location.href !== currentUrl) {
@@ -281,7 +327,7 @@ function setupPageChangeDetection() {
             isPageChanging = true;
             processingQueue = [];
 
-            // Observer 정리
+            // Clean up observer
             if (imageObserver) {
                 imageObserver.disconnect();
                 imageObserver = null;
@@ -312,6 +358,10 @@ function setupPageChangeDetection() {
     });
 }
 
+/**
+ * Process the image queue sequentially
+ * Handles one image at a time to avoid overwhelming the OCR server
+ */
 async function processQueue() {
     if (isProcessing || processingQueue.length === 0) return;
 
@@ -343,6 +393,10 @@ async function processQueue() {
     }
 }
 
+/**
+ * Process a single image through OCR pipeline
+ * @param {HTMLImageElement} element - The image element to process
+ */
 async function processImage(element) {
     if (isPageChanging) {
         console.log('[OCR] Skipping (page changing)');
@@ -409,12 +463,18 @@ async function processImage(element) {
     console.log('[OCR] ✅ Done');
 }
 
+/**
+ * Extract image data as base64 data URL
+ * Handles CORS issues and Pixiv's referrer restrictions
+ * @param {HTMLImageElement} img - The image element to extract
+ * @returns {Promise<string|null>} Base64 data URL or null if failed
+ */
 async function extractImageData(img) {
     if (isPageChanging) return null;
 
     return new Promise(async (resolve) => {
         try {
-            // ⭐ Pixiv 전용: 저장된 원본 URL 사용
+            // For Pixiv: use stored original URL
             let src = img.dataset.originalPixivSrc || img.currentSrc || img.src;
 
             if (!src || src === '' || src === 'about:blank') {
@@ -432,7 +492,7 @@ async function extractImageData(img) {
 
             const isPixiv = src.includes('pximg.net');
 
-            // ⭐ Pixiv: Offscreen document를 통한 처리
+            // Pixiv: Process through offscreen document to bypass CORS
             if (isPixiv) {
                 console.log('  Pixiv image detected, using offscreen document...');
 
@@ -454,7 +514,7 @@ async function extractImageData(img) {
                     console.log('  ❌ Offscreen processing error:', e.message);
                 }
 
-                // Offscreen 실패 시 fallback: 직접 시도
+                // Fallback: Try direct copy if offscreen fails
                 console.log('  Trying direct copy as fallback...');
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d', { willReadFrequently: false });
@@ -471,13 +531,13 @@ async function extractImageData(img) {
                     console.log('  Direct copy failed:', e.message);
                 }
 
-                // 모든 방법 실패
+                // All methods failed
                 console.log('  ❌ All methods failed for Pixiv image');
                 resolve(null);
                 return;
             }
 
-            // ⭐ 일반 이미지: 먼저 직접 시도
+            // Standard images: Try direct drawing first
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d', { willReadFrequently: false });
             canvas.width = width;
@@ -497,6 +557,7 @@ async function extractImageData(img) {
                 return;
             }
 
+            // Fallback: Background fetch for CORS issues
             try {
                 console.log('  Trying background fetch...');
                 const response = await chrome.runtime.sendMessage({
@@ -550,6 +611,11 @@ async function extractImageData(img) {
     });
 }
 
+/**
+ * Send image data to local OCR server
+ * @param {string} imageDataUrl - Base64 encoded image data
+ * @returns {Promise<Object|null>} OCR result or null if failed
+ */
 async function sendToOCRServer(imageDataUrl) {
     if (isPageChanging) return null;
 
@@ -560,7 +626,10 @@ async function sendToOCRServer(imageDataUrl) {
         const response = await fetch('http://127.0.0.1:5000/ocr', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ image: imageDataUrl }),
+            body: JSON.stringify({
+                image: imageDataUrl,
+                target_lang: targetLanguage  // Send target language to server
+            }),
             signal: controller.signal
         });
 
@@ -578,6 +647,15 @@ async function sendToOCRServer(imageDataUrl) {
     }
 }
 
+/**
+ * Overlay translated text on the image
+ * Creates a new image with text overlaid on white boxes
+ * @param {HTMLImageElement} element - The image element to modify
+ * @param {Array} textBlocks - Array of text blocks with bbox and text
+ * @param {Array} translatedTexts - Array of translated text strings
+ * @param {string} originalImageData - Original image data URL
+ * @param {boolean} useTranslation - Whether to use translation or original text
+ */
 async function replaceTextInImage(element, textBlocks, translatedTexts, originalImageData, useTranslation) {
     if (isPageChanging) return;
 
@@ -592,10 +670,12 @@ async function replaceTextInImage(element, textBlocks, translatedTexts, original
             canvas.height = img.height;
             ctx.drawImage(img, 0, 0);
 
+            // Draw each text block
             textBlocks.forEach((block, idx) => {
                 const bbox = block.bbox;
                 const text = useTranslation && translatedTexts[idx] ? translatedTexts[idx] : block.text;
 
+                // Draw white background
                 ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
                 ctx.fillRect(bbox.x0, bbox.y0, bbox.x1 - bbox.x0, bbox.y1 - bbox.y0);
 
@@ -603,6 +683,7 @@ async function replaceTextInImage(element, textBlocks, translatedTexts, original
                 const boxHeight = bbox.y1 - bbox.y0;
                 const padding = Math.max(8, boxWidth * 0.05);
 
+                // Calculate optimal font size
                 let fontSize = Math.min(24, boxHeight * 0.4);
                 let lines = [];
 
@@ -618,6 +699,7 @@ async function replaceTextInImage(element, textBlocks, translatedTexts, original
                     }
                 }
 
+                // Draw text
                 ctx.fillStyle = 'black';
                 ctx.font = `bold ${fontSize}px "Noto Sans KR", Arial, sans-serif`;
                 ctx.textBaseline = 'top';
@@ -638,6 +720,7 @@ async function replaceTextInImage(element, textBlocks, translatedTexts, original
 
             const newImageData = canvas.toDataURL('image/png');
 
+            // Set up click-to-toggle functionality
             if (!element.dataset.original) {
                 element.dataset.original = element.src;
                 element.style.cursor = 'pointer';
@@ -666,6 +749,13 @@ async function replaceTextInImage(element, textBlocks, translatedTexts, original
     });
 }
 
+/**
+ * Wrap text to fit within specified width
+ * @param {CanvasRenderingContext2D} ctx - Canvas context for text measurement
+ * @param {string} text - Text to wrap
+ * @param {number} maxWidth - Maximum width in pixels
+ * @returns {Array<string>} Array of wrapped text lines
+ */
 function wrapText(ctx, text, maxWidth) {
     const words = text.split(' ');
     const lines = [];
@@ -686,8 +776,17 @@ function wrapText(ctx, text, maxWidth) {
     return lines.flatMap(line => line.includes('\n') ? line.split('\n') : [line]);
 }
 
+/**
+ * Listen for settings changes and reload if enabled
+ */
 chrome.storage.onChanged.addListener((changes) => {
     if (changes.enabled && changes.enabled.newValue) {
         location.reload();
+    }
+
+    // Update target language without reload
+    if (changes.targetLang) {
+        targetLanguage = changes.targetLang.newValue;
+        console.log('[OCR] Target language updated to:', targetLanguage);
     }
 });

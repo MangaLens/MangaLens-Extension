@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            width: 320px;
+            padding: 15px;
+            font-family: Arial, sans-serif;
+        }
+        h1 { font-size: 18px; margin: 0 0 15px 0; }
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+        .status.ok { background: #d4edda; color: #155724; }
+        .status.error { background: #f8d7da; color: #721c24; }
+        .setting-group {
+            margin-bottom: 15px;
+        }
+        .setting-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #333;
+        }
+        select {
+            width: 100%;
+            padding: 8px;
+            font-size: 14px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            font-size: 14px;
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+            background: #007bff;
+            color: white;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .info {
+            font-size: 12px;
+            color: #666;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #eee;
+        }
+    </style>
+</head>
+<body>
+<h1>Manga Translator</h1>
+<div id="status" class="status">Checking server...</div>
+
+<div class="setting-group">
+    <label for="targetLang">Translation Language:</label>
+    <select id="targetLang">
+        <option value="Korean">Korean (한국어)</option>
+        <option value="English">English</option>
+        <option value="Japanese">Japanese (日本語)</option>
+        <option value="Chinese">Chinese (中文)</option>
+        <option value="Spanish">Spanish (Español)</option>
+        <option value="French">French (Français)</option>
+        <option value="German">German (Deutsch)</option>
+        <option value="Portuguese">Portuguese (Português)</option>
+        <option value="Russian">Russian (Русский)</option>
+        <option value="Italian">Italian (Italiano)</option>
+    </select>
+</div>
+
+<button id="toggle">Enable/Disable</button>
+
+<div class="info">
+    Server: http://127.0.0.1:5000
+</div>
+<script src="popup.js"></script>
+</body>
+</html>

@@ -1,9 +1,24 @@
-// 매우 간단한 background - CORS 우회 fetch만 처리
+/**
+ * Background service worker for OCR extension.
+ *
+ * Handles:
+ * - Offscreen document management for CORS bypass
+ * - Image fetching with Pixiv support
+ * - Message routing between content scripts and offscreen documents
+ *
+ * @author AnythingTranslate OCR
+ * @version 1.0.0
+ */
 
-// Background - Offscreen document 관리 및 메시지 라우팅
-
+// Offscreen document creation promise tracker
 let offscreenCreating = null;
 
+/**
+ * Set up offscreen document for canvas-based image processing.
+ * Ensures only one offscreen document exists at a time.
+ *
+ * @returns {Promise<void>}
+ */
 async function setupOffscreenDocument() {
     const offscreenUrl = chrome.runtime.getURL('offscreen.html');
     const existingContexts = await chrome.runtime.getContexts({
@@ -28,17 +43,21 @@ async function setupOffscreenDocument() {
     }
 }
 
+/**
+ * Message handler for content script and offscreen document communication
+ */
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    // Handle Pixiv image fetching with fallback URLs
     if (message.type === 'FETCH_IMAGE_OFFSCREEN') {
         (async () => {
             try {
                 console.log('[Background] Fetching Pixiv image:', message.url.substring(0, 100));
 
-                // ⭐ declarativeNetRequest가 Referer 헤더를 자동 추가함
+                // declarativeNetRequest automatically adds Referer header
                 let imageBlob = null;
                 let successUrl = null;
 
-                // 첫 번째 시도: 원본 URL
+                // First attempt: Original URL
                 try {
                     const response = await fetch(message.url, {
                         method: 'GET',
@@ -58,7 +77,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     console.log('[Background] Original URL error:', err.message);
                 }
 
-                // 두 번째 시도: webp → jpg
+                // Second attempt: webp → jpg
                 if (!imageBlob && message.url.includes('_webp/')) {
                     const altUrl = message.url.replace('_webp/', '/').replace('.webp', '.jpg');
                     console.log('[Background] Trying JPG:', altUrl.substring(0, 100));
@@ -81,7 +100,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     }
                 }
 
-                // 세 번째 시도: webp → png
+                // Third attempt: webp → png
                 if (!imageBlob && message.url.includes('_webp/')) {
                     const altUrl = message.url.replace('_webp/', '/').replace('.webp', '.png');
                     console.log('[Background] Trying PNG:', altUrl.substring(0, 100));
@@ -110,12 +129,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     return;
                 }
 
-                // Blob을 Data URL로 변환
+                // Convert Blob to Data URL
                 const reader = new FileReader();
                 reader.onloadend = async () => {
                     console.log('[Background] Blob converted to data URL, size:', reader.result.length);
 
-                    // ⭐ Offscreen document로 전송하여 canvas 처리
+                    // Send to offscreen document for canvas processing
                     await setupOffscreenDocument();
 
                     const offscreenResponse = await chrome.runtime.sendMessage({
@@ -142,6 +161,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true;
     }
 
+    // Handle standard image fetching
     if (message.type === 'FETCH_IMAGE') {
         (async () => {
             try {

@@ -1,8 +1,23 @@
+/**
+ * Offscreen document for image processing with CORS bypass.
+ *
+ * This document runs in an isolated context that can:
+ * - Access canvas API for image manipulation
+ * - Bypass CORS restrictions for certain operations
+ * - Re-encode images to ensure they can be processed by OCR server
+ *
+ * @author AnythingTranslate OCR
+ * @version 1.0.0
+ */
+
 const canvas = document.getElementById('processingCanvas');
 const ctx = canvas.getContext('2d');
 
 console.log('[Offscreen] OCR processor initialized');
 
+/**
+ * Message handler for image processing requests from background script
+ */
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     console.log('[Offscreen] Message received:', message.type);
 
@@ -14,10 +29,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             console.error('[Offscreen] Error:', err);
             sendResponse({ success: false, error: err.message });
         });
-        return true;
+        return true; // Keep message channel open for async response
     }
 });
 
+/**
+ * Process image data by loading, drawing to canvas, and re-encoding.
+ * This helps bypass CORS issues and ensures consistent image format.
+ *
+ * @param {string} dataUrl - Base64 encoded image data URL
+ * @returns {Promise<Object>} Object with success status, dataUrl, and size
+ */
 async function handleImageData(dataUrl) {
     try {
         console.log('[Offscreen] Processing image data...');
@@ -32,7 +54,7 @@ async function handleImageData(dataUrl) {
             img.onload = () => {
                 clearTimeout(timeout);
                 try {
-                    // Canvas에 그리기
+                    // Draw to canvas
                     canvas.width = img.naturalWidth || img.width;
                     canvas.height = img.naturalHeight || img.height;
 
@@ -40,7 +62,7 @@ async function handleImageData(dataUrl) {
 
                     ctx.drawImage(img, 0, 0);
 
-                    // Data URL로 변환 (PNG로 재인코딩)
+                    // Convert to Data URL (re-encode as PNG)
                     const outputDataUrl = canvas.toDataURL('image/png', 0.95);
                     console.log('[Offscreen] ✓ Image converted to PNG');
 

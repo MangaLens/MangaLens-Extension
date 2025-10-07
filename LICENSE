@@ -1,0 +1,93 @@
+MIT License
+
+Copyright (c) 2025 AnythingTranslate OCR
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+================================================================================
+
+THIRD-PARTY LICENSES
+
+This project uses the following third-party components, each with their own license:
+
+1. DotsOCR (MIT License)
+   Copyright (c) DotsOCR Contributors
+   Licensed under the MIT License
+   See: https://github.com/UCDvision/DotsOCR
+
+2. Surya (AI PUBS OPEN RAIL-M LICENSE)
+   Copyright (c) Surya Contributors
+   Licensed under AI PUBS OPEN RAIL-M LICENSE (Modified), Version 0.1, March 2, 2023
+
+   IMPORTANT COMMERCIAL USE RESTRICTIONS:
+   - If your organization generated more than $2,000,000 USD in gross revenue in the prior year,
+     you may only use Surya for personal use or research purposes.
+   - If your organization has raised more than $2,000,000 USD in total equity or debt funding,
+     you may only use Surya for personal use or research purposes.
+   - You may not use Surya for any product or service that competes with Licensor's offerings.
+
+   For commercial use beyond these restrictions, contact Surya at: https://www.datalab.to/
+   Full license text: http://licenses.ai/
+   See: https://github.com/VikParuchuri/surya
+
+3. PyTorch (BSD-3-Clause License)
+   Copyright (c) PyTorch Contributors
+   See: https://github.com/pytorch/pytorch/blob/main/LICENSE
+
+4. Transformers (Apache License 2.0)
+   Copyright (c) Hugging Face
+   See: https://github.com/huggingface/transformers/blob/main/LICENSE
+
+5. Flask (BSD-3-Clause License)
+   Copyright (c) Flask Contributors
+   See: https://github.com/pallets/flask/blob/main/LICENSE.txt
+
+================================================================================
+
+NOTICE TO USERS:
+
+Due to Surya's AI PUBS OPEN RAIL-M LICENSE restrictions, this software has the
+following limitations:
+
+FOR COMMERCIAL ENTITIES:
+If you or your organization:
+- Generated > $2M USD revenue in the prior year, OR
+- Raised > $2M USD in total funding
+
+Then you may ONLY use this software for:
+- Personal use
+- Research purposes
+
+For commercial use beyond these restrictions, you must obtain a separate
+commercial license for Surya from: https://www.datalab.to/
+
+FOR NON-COMMERCIAL USE:
+Individuals and small organizations below these thresholds may use this
+software freely under the terms of the MIT License and Surya's RAIL-M License.
+
+================================================================================
+
+DISCLAIMER:
+
+This software is provided for educational and research purposes. Users are
+responsible for ensuring their use complies with all applicable licenses,
+including the Surya AI PUBS OPEN RAIL-M LICENSE restrictions.
+
+The authors and contributors of this software are not responsible for any
+misuse or violation of the third-party licenses.

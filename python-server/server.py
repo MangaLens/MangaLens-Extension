@@ -1,3 +1,10 @@
+"""
+Flask server for OCR and translation operations.
+
+This server provides endpoints for performing OCR on images using DotsOCR model
+and optional translation using LM Studio or OpenAI API.
+"""
+
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import base64
@@ -7,115 +14,70 @@ import torch
 import gc
 from transformers import AutoModelForCausalLM, AutoProcessor
 from surya.detection import DetectionPredictor
-from utils import merge_overlapping_boxes, image_enhance
+from utils import merge_overlapping_boxes, image_enhance, translate_text
 
 app = Flask(__name__)
 CORS(app)
 
 print('Initializing models...')
 
-# GPU 설정
-device = "mps" if torch.backends.mps.is_available() else "cpu"
+# GPU configuration - Support CUDA, MPS, and CPU
+if torch.cuda.is_available():
+    device = "cuda"
+    dtype = torch.bfloat16  # Use bfloat16 for CUDA
+    print(f'✓ Using CUDA GPU: {torch.cuda.get_device_name(0)}')
+elif torch.backends.mps.is_available():
+    device = "mps"
+    dtype = torch.float16  # MPS uses float16
+    print('✓ Using Apple Silicon MPS')
+else:
+    device = "cpu"
+    dtype = torch.float32  # CPU uses float32
+    print('⚠️  Using CPU (slower performance)')
 
-# ⭐ 모델을 전역 변수로 한 번만 로딩 (서버 시작 시)
+# Load models globally once at server startup
 det_predictor = DetectionPredictor()
 
-model_path = "weights/DotsOCR"
+dotsocr_model_path = "weights/DotsOCR"
 
 model = AutoModelForCausalLM.from_pretrained(
-    model_path,
-    torch_dtype=torch.float16,
+    dotsocr_model_path,
+    torch_dtype=dtype,
     trust_remote_code=True,
     local_files_only=True
 ).to(device)
 
 processor = AutoProcessor.from_pretrained(
-    model_path,
+    dotsocr_model_path,
     trust_remote_code=True,
     local_files_only=True
 )
-
-# 번역 모델은 OpenAI API 사용
-translator = None
-
-def get_translator():
-    """OpenAI API 연결 확인 (LM Studio 또는 실제 OpenAI)"""
-    global translator
-    if translator is None:
-        print('Connecting to OpenAI API...')
-        try:
-            from openai import OpenAI
-
-            # LM Studio의 로컬 서버 사용
-            client = OpenAI(
-                base_url="http://localhost:1234/v1",
-                api_key="lm-studio"  # LM Studio는 API 키가 필요 없지만 형식상 필요
-            )
-
-            # 연결 테스트
-            test_response = client.chat.completions.create(
-                model="local-model",  # LM Studio는 모델명이 중요하지 않음
-                messages=[{"role": "user", "content": "test"}],
-                max_tokens=1
-            )
-
-            translator = {
-                'type': 'openai',
-                'client': client
-            }
-            print('✓ Connected to OpenAI API (LM Studio)')
-
-        except Exception as e:
-            print(f'⚠️  OpenAI API connection failed: {e}')
-            print('   Make sure LM Studio is running with a model loaded on port 1234')
-            return None
-    return translator
 
 print('✓ Models ready')
 
 PROMPT = """Extract the text content from this image."""
 
-def translate_text(text, target_lang="Korean"):
-    """텍스트를 번역하는 함수 - OpenAI API 사용"""
-    if not text or not text.strip():
-        return text
-
-    trans = get_translator()
-    if trans is None:
-        print('⚠️  Translation skipped - API not available')
-        return text
-
-    try:
-        client = trans['client']
-
-        response = client.chat.completions.create(
-            model="local-model",  # LM Studio는 로드된 모델을 자동으로 사용
-            messages=[
-                {
-                    "role": "user",
-                    "content": f"Translate the following text into {target_lang}.\nText: {text}\n{target_lang}:"
-                }
-            ],
-            temperature=0.1,
-            max_tokens=256
-        )
-
-        translation = response.choices[0].message.content.strip()
-        return translation
-
-    except Exception as e:
-        print(f'⚠️  Translation error: {e}')
-        import traceback
-        traceback.print_exc()
-        return text
 
 @app.route('/ocr', methods=['POST'])
 def ocr_endpoint():
+    """
+    OCR endpoint that extracts and translates text from images.
+
+    Expects:
+        JSON with 'image' key containing base64-encoded image data
+        JSON with optional 'target_lang' key for translation language
+
+    Returns:
+        JSON with extracted text, text blocks, and bounding boxes
+    """
     print('=' * 50)
 
     try:
         data = request.get_json()
         image_data_url = data.get('image')
+        target_lang = data.get('target_lang', 'Korean')  # Get target language, default to Korean
+
+        print(f'Target translation language: {target_lang}')
 
         if not image_data_url:
             return jsonify({'error': 'No image'}), 400
@@ -133,12 +95,12 @@ def ocr_endpoint():
 
         print(f'Processing: {image.size}')
 
-        # 1단계: Surya로 텍스트 버블 감지
+        # Step 1: Detect text bubbles with Surya
         print('🔍 Detecting text bubbles with Surya...')
         predictions = det_predictor([image])
         text_bboxes = merge_overlapping_boxes(predictions[0].bboxes, 10)
 
-        # 작은 버블 필터링
+        # Filter out small bubbles
         MIN_WIDTH = 30
         MIN_HEIGHT = 30
         MIN_AREA = 900
@@ -156,7 +118,7 @@ def ocr_endpoint():
         text_bboxes = filtered_bboxes
         print(f'✓ Detected {len(text_bboxes)} text bubbles')
 
-        # 2단계: 각 버블에 대해 OCR 수행
+        # Step 2: Perform OCR on each bubble
         text_blocks = []
 
         for idx, bbox in enumerate(text_bboxes):
@@ -178,8 +140,9 @@ def ocr_endpoint():
             text = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
             inputs = processor(text=[text], images=[cropped], padding=True, return_tensors="pt")
 
+            # Move inputs to device with appropriate dtype
             inputs = {
-                k: v.to(device).to(torch.float16) if isinstance(v, torch.Tensor) and v.dtype in [torch.float32, torch.bfloat16]
+                k: v.to(device).to(dtype) if isinstance(v, torch.Tensor) and v.dtype in [torch.float32, torch.bfloat16, torch.float16]
                 else v.to(device) if isinstance(v, torch.Tensor)
                 else v
                 for k, v in inputs.items()
@@ -205,19 +168,20 @@ def ocr_endpoint():
 
             print(f'   Text: {output_text}')
 
-            # 번역 수행
-            print(f'🌐 Translating...')
-            translated_text = translate_text(output_text, target_lang="Korean")
+            # Perform translation with selected target language
+            print(f'🌐 Translating to {target_lang}...')
+            translated_text = translate_text(output_text, target_lang=target_lang)
             print(f'   Translated: {translated_text}')
 
-            # 번역 실패 시 원문 사용
+            # Use original text if translation fails
             display_text = translated_text if translated_text and translated_text != output_text else output_text
 
-            # 번역된 텍스트를 표시 (원본은 보관만)
+            # Store both original and translated text
             text_blocks.append({
-                'text': display_text,  # 화면에 표시될 텍스트 (번역본 또는 원문)
-                'original_text': output_text,  # OCR 원본
-                'translated_text': translated_text if translated_text != output_text else None,  # 번역본 (성공 시만)
+                'text': display_text,  # Text to display (translated or original)
+                'original_text': output_text,  # Original OCR text
+                'translated_text': translated_text if translated_text != output_text else None,
+                # Translation (only if successful)
                 'bbox': {
                     'x0': x1,
                     'y0': y1,
@@ -228,22 +192,24 @@ def ocr_endpoint():
                 'style': 'normal'
             })
 
-            # ⭐ 텐서만 삭제 (모델은 유지)
+            # Clean up tensors only (keep models)
             del inputs, generated_ids, generated_ids_trimmed
 
-        # ⭐ 요청 처리 후 한 번만 메모리 정리
-        if torch.backends.mps.is_available():
+        # Clean up memory after processing all requests
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        elif torch.backends.mps.is_available():
             torch.mps.empty_cache()
         gc.collect()
 
-        full_text = '\n'.join([b['text'] for b in text_blocks])  # 이제 번역된 텍스트
+        full_text = '\n'.join([b['text'] for b in text_blocks])  # Now contains translated text
 
         print(f'✓ Extracted and translated {len(text_blocks)} text blocks')
         print('=' * 50)
 
         return jsonify({
-            'text': full_text,  # 번역된 텍스트
-            'text_blocks': text_blocks,  # text 필드에 번역본이 들어있음
+            'text': full_text,  # Translated text
+            'text_blocks': text_blocks,  # Text field contains translated text
             'success': True,
             'bubbles_count': len(text_blocks)
         })
@@ -255,10 +221,13 @@ def ocr_endpoint():
         print('=' * 50)
         return jsonify({'error': str(e)}), 500
 
+
 @app.route('/health', methods=['GET'])
 def health():
+    """Health check endpoint."""
     return jsonify({'status': 'ok'})
 
+
 if __name__ == '__main__':
-    print('Starting server on http://127.0.0.1:5000')
-    app.run(host='127.0.0.1', port=5000, debug=True)
+    print('Starting server on http://localhost:5000')
+    app.run(host='localhost', port=5000, debug=True)
